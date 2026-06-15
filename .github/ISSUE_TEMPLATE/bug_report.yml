@@ -1,0 +1,91 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Please fill in as much of the form as you can — the hardware and version fields in particular help us reproduce the problem quickly.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A short description of the bug.
+      placeholder: When I click Bulk Annotate, the GUI freezes for 30 seconds and then nothing happens.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Launch Auto Annotate
+        2. Select my-engine.engine and labels.txt
+        3. Click Bulk Annotate
+        4. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: I expected bounding boxes to appear on every image.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: jetson-model
+    attributes:
+      label: Jetson model
+      options:
+        - Orin Nano
+        - Orin NX
+        - AGX Orin
+        - Xavier NX
+        - AGX Xavier
+        - Jetson Nano
+        - TX2
+        - Other (specify in description)
+    validations:
+      required: true
+
+  - type: input
+    id: jetpack-version
+    attributes:
+      label: JetPack version
+      placeholder: "6.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: model-architecture
+    attributes:
+      label: Model architecture
+      options:
+        - YOLO11
+        - YOLOv8
+        - YOLOv5
+        - RF-DETR
+        - Other (specify in description)
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Auto Annotate version or commit SHA
+      placeholder: "0.3.0 or commit abc1234"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / terminal output
+      render: shell
+    validations:
+      required: false

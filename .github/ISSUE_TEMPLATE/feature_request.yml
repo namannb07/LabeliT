@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest an enhancement or new capability.
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the use case. We weigh feature requests by how clearly the use case is articulated.
+      placeholder: When labeling 5000+ images, I want a way to surface only low-confidence predictions for review.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed solution
+      description: What would the feature look like? UI sketch, command-line option, config key, etc. Rough is fine.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you thought about, or how you work around the gap today.
+    validations:
+      required: false

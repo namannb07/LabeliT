@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+build/
+dist/
+wheels/
+*.egg-info/
+
+# Virtual environments
+.venv/
+.env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Input images (runtime dir is ~/Desktop/auto_annotate/input_images/)
+images/
+
+# Generated output
+output/
+
+# Model files — not part of the codebase; placed in ~/Desktop/auto_annotate/model/ at runtime
+model/
+
+# OS
+.DS_Store
+Thumbs.db
