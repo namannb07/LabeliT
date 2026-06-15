@@ -1,6 +1,10 @@
 from pathlib import Path
 
-WORK_DIR = Path.home() / "Desktop" / "auto_annotate"
+desktop_dir = Path.home() / "OneDrive" / "Desktop"
+if not desktop_dir.exists():
+    desktop_dir = Path.home() / "Desktop"
+
+WORK_DIR = desktop_dir / "auto_annotate"
 IMAGES_DIR = WORK_DIR / "input_images"
 DATASETS_DIR = WORK_DIR / "datasets"
 MODELS_DIR = WORK_DIR / "models"
@@ -31,9 +35,6 @@ AUTOSAVE_CEILING_MS = 30_000
 
 TOOLTIP_DELAY_MS = 500
 
-ENGINE_BUILD_WORKSPACE_GB = 1
-ENGINE_BUILD_FP16_DEFAULT = True
-ENGINE_BUILD_POLL_MS = 250
 
 FRAME_EXTRACT_POLL_MS = 100
 FRAME_EXTRACT_VIDEO_EXTS = (".mp4", ".mkv", ".webm")

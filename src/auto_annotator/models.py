@@ -10,10 +10,9 @@ class ModelType:
 
 
 @dataclass
-class TRTBuffer:
+class OutputBuffer:
     name: str
     host: np.ndarray
-    device: object  # cuda.DeviceAllocation
     shape: Tuple
     dtype: np.dtype
 

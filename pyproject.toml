@@ -1,19 +1,19 @@
 [project]
 name = "annotate"
 version = "0.3.0"
-description = "TensorRT-accelerated bulk image annotation GUI for Jetson (YOLO11, RF-DETR)"
+description = "ONNX Runtime CPU-based bulk image annotation GUI (YOLO11, RF-DETR)"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = "==3.10.*"
+requires-python = ">=3.10"
 authors = [
     { name = "LabeliT", email = "contact@example.com" },
 ]
-keywords = ["annotation", "tensorrt", "yolo", "jetson", "object-detection", "dataset"]
+keywords = ["annotation", "onnx", "windows", "yolo", "object-detection", "dataset"]
 classifiers = [
     "Development Status :: 4 - Beta",
-    "Environment :: X11 Applications :: GTK",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: Apache Software License",
+    "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3 :: Only",
@@ -21,7 +21,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Image Recognition",
 ]
 dependencies = [
-    "pycuda>=2022.1",
+    "onnxruntime>=1.17,<1.24",
     "opencv-python-headless>=4.9",
     "pillow>=10.0",
     "numpy>=1.26",
@@ -52,10 +52,6 @@ packages = ["src/auto_annotator"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = [
-    "jetson: requires Jetson hardware with TensorRT (skipped by default on non-Jetson hosts)",
-]
-addopts = "-m 'not jetson'"
 
 [tool.ruff]
 line-length = 100

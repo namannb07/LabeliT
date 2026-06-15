@@ -1,6 +1,6 @@
 # annotate — Claude project context
 
-TensorRT-accelerated bulk image annotation GUI for Jetson/JetPack Linux. Supports YOLO11 and RF-DETR models. Structured as a Python package under `src/auto_annotator/`.
+ONNX Runtime CPU-based bulk image annotation GUI. Supports YOLO11 and RF-DETR models. Structured as a Python package under `src/auto_annotator/`.
 
 ## Project Layout
 
@@ -9,9 +9,9 @@ src/auto_annotator/
     __init__.py       # Package metadata + public API re-exports
     __main__.py       # Entry point: main() function
     config.py         # All constants (paths, thresholds, colors, canvas params)
-    models.py         # Domain data classes: ModelType, TRTBuffer, BoundingBox
+    models.py         # Domain data classes: ModelType, OutputBuffer, BoundingBox
     utils.py          # load_labels_file() utility
-    detector.py       # TRTDetector class — engine/CUDA manager, delegates parsing
+    detector.py       # OnnxDetector class — ONNX manager, delegates parsing
     store.py          # AnnotationStore class (CRUD + YOLO/COCO import/export)
     dialogs.py        # ModelSelectionDialog class
     app.py            # AnnotatorApp orchestrator (main GUI window)
@@ -39,7 +39,7 @@ assets/auto_annotate.svg # Application icon
 
 | Class | Module | Role |
 |-------|--------|------|
-| `TRTDetector` | `detector.py` | Loads a `.engine` file, manages CUDA buffers, runs inference. Delegates output decoding to a matched `OutputParser`. |
+| `OnnxDetector` | `detector.py` | Loads a `.onnx` file, runs inference on CPU. Delegates output decoding to a matched `OutputParser`. |
 | `OutputParser` | `parsers/base.py` | ABC for model-specific output parsers. Subclasses: `YoloParser`, `DetrParser`. |
 | `AnnotationStore` | `store.py` | In-memory annotation state; YOLO `.txt` export and COCO JSON export. |
 | `BoundingBox` | `models.py` | Pure domain data: `class_id`, `cx`, `cy`, `w`, `h`, `confidence`. Used by parsers, store, exports. |
@@ -69,14 +69,10 @@ uv pip install -e .
 uv run python -m auto_annotator
 ```
 
-Ensure JetPack TensorRT/CUDA system libs are on `PYTHONPATH` / `LD_LIBRARY_PATH` (JetPack normally sets these).
-
 ## Hard Constraints
 
-- **Platform:** JetPack / Jetson Linux only. No cross-platform shims.
-- **Python:** 3.10 exactly (JetPack constraint).
+- **Python:** >= 3.10
 - **Package manager:** always `uv` — never `pip` directly.
-- **`tensorrt`:** system package from JetPack. Do NOT add it to `pyproject.toml` as a PyPI dep.
 - **No async/await:** tkinter's mainloop is incompatible without explicit bridging.
 
 ## Important Invariants
@@ -91,5 +87,4 @@ Ensure JetPack TensorRT/CUDA system libs are on `PYTHONPATH` / `LD_LIBRARY_PATH`
 ## What NOT To Do
 
 - `pip install` anything — use `uv`
-- Add `tensorrt` to `pyproject.toml`
 - Add GUI logic to `AnnotationStore` or export logic to `AnnotatorApp`

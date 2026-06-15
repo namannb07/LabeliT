@@ -11,10 +11,9 @@ from auto_annotator.config import (
     WORK_DIR,
     YOLO_ANNOTATIONS_DIR,
 )
-from auto_annotator.detector import TRTDetector
+from auto_annotator.detector import OnnxDetector
 from auto_annotator.dialogs import (
     EmptyStateDialog,
-    ExportEngineDialog,
     FrameExtractionDialog,
     LauncherDialog,
     ModelSelectionDialog,
@@ -61,10 +60,6 @@ def _main_impl():
             root.destroy()
             sys.exit(0)
 
-        if launcher.choice == "export":
-            ExportEngineDialog(root)
-            continue
-
         if launcher.choice == "extract_frames":
             FrameExtractionDialog(root)
             continue
@@ -96,24 +91,20 @@ def _main_impl():
         root.destroy()
         sys.exit(0)
 
-    try:
-        labels = load_labels_file(dialog.labels_path)
-    except Exception as e:
-        messagebox.showerror("Label Load Error", str(e), parent=None)
-        root.destroy()
-        sys.exit(1)
+    labels = []
+    if dialog.labels_path:
+        try:
+            labels = load_labels_file(dialog.labels_path)
+        except Exception as e:
+            messagebox.showerror("Label Load Error", str(e), parent=None)
+            root.destroy()
+            sys.exit(1)
 
-    if not labels:
-        messagebox.showerror("Label Load Error",
-                             f"No labels found in {dialog.labels_path}", parent=None)
-        root.destroy()
-        sys.exit(1)
-
-    detector = TRTDetector()
+    detector = OnnxDetector()
     try:
-        detector.load(dialog.engine_path, labels)
+        detector.load(dialog.model_path, labels)
     except Exception as e:
-        messagebox.showerror("Engine Load Error", str(e), parent=None)
+        messagebox.showerror("Model Load Error", str(e), parent=None)
         root.destroy()
         sys.exit(1)
 
@@ -125,7 +116,7 @@ def _main_impl():
             labels.append(extra)
             existing.add(extra.lower())
 
-    print(f"Engine loaded — model: {detector.model_type}, "
+    print(f"Model loaded — type: {detector.model_type}, "
           f"input: {detector.net_w}×{detector.net_h}, "
           f"model classes: {detector.num_model_classes}, "
           f"total labels: {len(labels)}")

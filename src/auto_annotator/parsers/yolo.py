@@ -2,7 +2,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-from auto_annotator.models import BoundingBox, TRTBuffer
+from auto_annotator.models import BoundingBox, OutputBuffer
 from auto_annotator.parsers.base import OutputParser, letterbox_preprocess, nms
 
 
@@ -71,7 +71,7 @@ class YoloParser(OutputParser):
 
     def parse(
         self,
-        output_bufs: List[TRTBuffer],
+        output_bufs: List[OutputBuffer],
         meta: dict,
         orig_w: int,
         orig_h: int,
