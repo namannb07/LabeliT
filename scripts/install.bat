@@ -29,7 +29,7 @@ if not exist "%WORK_DIR%\model" mkdir "%WORK_DIR%\model"
 
 echo Creating Desktop shortcut...
 set "SHORTCUT_PATH=%DESKTOP_DIR%\LabeliT.lnk"
-powershell -Command "$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%SHORTCUT_PATH%'); $Shortcut.TargetPath = 'uv.exe'; $Shortcut.Arguments = 'run python -m auto_annotator'; $Shortcut.WorkingDirectory = '%REPO_DIR%'; $Shortcut.WindowStyle = 1; $Shortcut.Save()"
+powershell -Command "$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%SHORTCUT_PATH%'); $Shortcut.TargetPath = 'uv.exe'; $Shortcut.Arguments = 'run python -m auto_annotator'; $Shortcut.WorkingDirectory = '%REPO_DIR%'; $Shortcut.WindowStyle = 1; $Shortcut.IconLocation = '%REPO_DIR%\assets\auto_annotate.ico'; $Shortcut.Save()"
 
 echo.
 echo Installation complete! 
