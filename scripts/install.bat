@@ -11,7 +11,9 @@ if %ERRORLEVEL% neq 0 (
 )
 
 :: Get absolute path of the directory containing the project root
-set "REPO_DIR=%~dp0.."
+pushd "%~dp0.."
+set "REPO_DIR=%CD%"
+popd
 cd /d "%REPO_DIR%"
 
 echo Creating virtual environment and installing dependencies...
@@ -29,7 +31,7 @@ if not exist "%WORK_DIR%\model" mkdir "%WORK_DIR%\model"
 
 echo Creating Desktop shortcut...
 set "SHORTCUT_PATH=%DESKTOP_DIR%\LabeliT.lnk"
-powershell -Command "$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%SHORTCUT_PATH%'); $Shortcut.TargetPath = 'uv.exe'; $Shortcut.Arguments = 'run python -m auto_annotator'; $Shortcut.WorkingDirectory = '%REPO_DIR%'; $Shortcut.WindowStyle = 1; $Shortcut.IconLocation = '%REPO_DIR%\assets\auto_annotate.ico'; $Shortcut.Save()"
+powershell -Command "$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%SHORTCUT_PATH%'); $Shortcut.TargetPath = 'wscript.exe'; $Shortcut.Arguments = '\"%REPO_DIR%\scripts\launch.vbs\"'; $Shortcut.WorkingDirectory = '%REPO_DIR%'; $Shortcut.WindowStyle = 1; $Shortcut.IconLocation = '%REPO_DIR%\assets\auto_annotate.ico'; $Shortcut.Save()"
 
 echo.
 echo Installation complete! 
