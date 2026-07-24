@@ -1,6 +1,21 @@
 @echo off
 echo Installing LabeliT...
 
+:: Add Python Scripts directories to PATH dynamically
+where python >nul 2>nul
+if %ERRORLEVEL% EQU 0 (
+    for /f "delims=" %%i in ('python -c "import sys, os; print(os.path.dirname(sys.executable) + '\\Scripts')" 2^>nul') do (
+        if exist "%%i" (
+            set "PATH=%%i;%PATH%"
+        )
+    )
+    for /f "delims=" %%i in ('python -c "import site; print(site.getusersitepackages().replace('site-packages', 'Scripts'))" 2^>nul') do (
+        if exist "%%i" (
+            set "PATH=%%i;%PATH%"
+        )
+    )
+)
+
 :: Check for uv
 where uv >nul 2>nul
 if %ERRORLEVEL% neq 0 (
