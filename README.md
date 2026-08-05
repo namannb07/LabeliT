@@ -1,4 +1,4 @@
-# Auto Annotate
+# LabelIt
 
 [![CI](https://github.com/LabeliT/LabeliT/actions/workflows/ci.yml/badge.svg)](https://github.com/LabeliT/LabeliT/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE)
