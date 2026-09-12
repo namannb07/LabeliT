@@ -4,81 +4,99 @@ from typing import Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 
-from auto_annotator.models import BoundingBox, TRTBuffer
+from auto_annotator.models import BoundingBox, OutputBuffer
 from auto_annotator.parsers import OutputParser, detect_parser
 
 try:
-    import pycuda.autoinit  # noqa: F401 — initializes CUDA context on import
-    import pycuda.driver as cuda
-    import tensorrt as trt
-    TRT_AVAILABLE = True
+    import onnxruntime as ort
+    ORT_AVAILABLE = True
 except ImportError:
-    TRT_AVAILABLE = False
+    ORT_AVAILABLE = False
 
 
-class TRTDetector:
+class OnnxDetector:
     def __init__(self):
-        self.engine_path: Optional[Path] = None
+        self.model_path: Optional[Path] = None
         self.labels: List[str] = []
         self.num_model_classes: int = 0
         self.net_w: int = 0
         self.net_h: int = 0
-        self._engine = None
-        self._context = None
-        self._stream = None
-        self._input_buf: Optional[TRTBuffer] = None
-        self._output_bufs: List[TRTBuffer] = []
+        self._session: Optional["ort.InferenceSession"] = None
+        self._input_name: Optional[str] = None
+        self._output_names: List[str] = []
+        self._output_shapes: Dict[str, Tuple] = {}
         self._parser: Optional[OutputParser] = None
 
     @property
     def model_type(self) -> Optional[str]:
         return self._parser.name if self._parser else None
 
-    def load(self, engine_path: Path, labels: List[str]) -> None:
-        if not TRT_AVAILABLE:
+    def load(self, model_path: Path, labels: List[str]) -> None:
+        if not ORT_AVAILABLE:
             raise RuntimeError(
-                "tensorrt or pycuda not available.\n"
-                "Ensure JetPack TRT system packages are on PYTHONPATH.\n"
-                "Typical path: /usr/lib/python3/dist-packages/"
+                "onnxruntime is not installed.\n"
+                "Install it with:  pip install onnxruntime"
             )
         try:
-            self._load_impl(engine_path, labels)
+            self._load_impl(model_path, labels)
         except Exception as e:
-            raise RuntimeError(f"Engine load failed: {e}") from e
+            raise RuntimeError(f"Model load failed: {e}") from e
 
-    def _load_impl(self, engine_path: Path, labels: List[str]) -> None:
-        self.engine_path = engine_path
+    def _load_impl(self, model_path: Path, labels: List[str]) -> None:
+        self.model_path = model_path
         self.labels = labels
 
-        trt_logger = trt.Logger(trt.Logger.WARNING)
-        runtime = trt.Runtime(trt_logger)
-        with open(engine_path, "rb") as f:
-            self._engine = runtime.deserialize_cuda_engine(f.read())
-        if self._engine is None:
-            raise RuntimeError(f"Failed to deserialize engine: {engine_path}")
+        sess_options = ort.SessionOptions()
+        sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
 
-        for i in range(self._engine.num_io_tensors):
-            name = self._engine.get_tensor_name(i)
-            if self._engine.get_tensor_mode(name) == trt.TensorIOMode.INPUT:
-                shape = self._engine.get_tensor_shape(name)
-                if len(shape) < 4:
-                    raise RuntimeError(
-                        f"Unexpected input tensor shape {tuple(shape)} — "
-                        "expected (batch, channels, H, W)"
-                    )
-                h, w = int(shape[2]), int(shape[3])
-                if h <= 0 or w <= 0:
-                    raise RuntimeError(
-                        f"Engine has dynamic spatial dimensions (H={h}, W={w}). "
-                        "Rebuild the engine with a fixed input shape."
-                    )
-                self.net_h = h
-                self.net_w = w
-                break
+        self._session = ort.InferenceSession(
+            str(model_path),
+            sess_options=sess_options,
+            providers=["CPUExecutionProvider"],
+        )
 
-        output_names, output_shapes = self._collect_outputs()
-        self._parser = detect_parser(output_names, output_shapes,
-                                     num_classes_hint=len(labels))
+        # Inspect input tensor
+        inputs = self._session.get_inputs()
+        if not inputs:
+            raise RuntimeError("ONNX model has no input tensors.")
+
+        inp = inputs[0]
+        self._input_name = inp.name
+        shape = inp.shape
+
+        if len(shape) < 4:
+            raise RuntimeError(
+                f"Unexpected input tensor shape {tuple(shape)} — "
+                "expected (batch, channels, H, W)"
+            )
+
+        h, w = shape[2], shape[3]
+        # Handle dynamic dimensions (e.g. -1 or string like 'height')
+        if not isinstance(h, int) or not isinstance(w, int) or h <= 0 or w <= 0:
+            raise RuntimeError(
+                f"Model has dynamic spatial dimensions (H={h}, W={w}). "
+                "Only fixed-resolution models are supported."
+            )
+        self.net_h = h
+        self.net_w = w
+
+        # Collect output tensor info
+        self._output_names = []
+        self._output_shapes = {}
+        for out in self._session.get_outputs():
+            self._output_names.append(out.name)
+            # Replace any dynamic dims with 1 for shape detection
+            resolved_shape = tuple(
+                d if isinstance(d, int) and d > 0 else 1
+                for d in out.shape
+            )
+            self._output_shapes[out.name] = resolved_shape
+
+        self._parser = detect_parser(
+            self._output_names,
+            self._output_shapes,
+            num_classes_hint=len(labels),
+        )
         self.num_model_classes = self._parser.num_model_classes
 
         if len(self.labels) < self.num_model_classes:
@@ -86,51 +104,6 @@ class TRTDetector:
                 self.labels.append(f"class_{i}")
         elif len(self.labels) > self.num_model_classes:
             self.labels = self.labels[: self.num_model_classes]
-
-        self._context = self._engine.create_execution_context()
-        self._stream = cuda.Stream()
-        self._allocate_buffers()
-
-    def _collect_outputs(self) -> Tuple[List[str], Dict[str, Tuple]]:
-        output_names: List[str] = []
-        output_shapes: Dict[str, Tuple] = {}
-        for i in range(self._engine.num_io_tensors):
-            name = self._engine.get_tensor_name(i)
-            if self._engine.get_tensor_mode(name) == trt.TensorIOMode.OUTPUT:
-                output_names.append(name)
-                output_shapes[name] = tuple(self._engine.get_tensor_shape(name))
-        return output_names, output_shapes
-
-    def _allocate_buffers(self) -> None:
-        dtype_map = {}
-        if TRT_AVAILABLE:
-            dtype_map = {
-                trt.DataType.FLOAT: np.float32,
-                trt.DataType.HALF:  np.float16,
-                trt.DataType.INT32: np.int32,
-                trt.DataType.INT8:  np.int8,
-                trt.DataType.BOOL:  np.bool_,
-            }
-
-        self._output_bufs = []
-        for i in range(self._engine.num_io_tensors):
-            name = self._engine.get_tensor_name(i)
-            shape = tuple(int(d) for d in self._engine.get_tensor_shape(name))
-            trt_dtype = self._engine.get_tensor_dtype(name)
-            np_dtype = dtype_map.get(trt_dtype, np.float32)
-
-            size = int(np.prod(shape))
-            host_mem = cuda.pagelocked_empty(size, np_dtype)
-            dev_mem = cuda.mem_alloc(host_mem.nbytes)
-            self._context.set_tensor_address(name, int(dev_mem))
-
-            buf = TRTBuffer(name=name, host=host_mem, device=dev_mem,
-                            shape=shape, dtype=np_dtype)
-
-            if self._engine.get_tensor_mode(name) == trt.TensorIOMode.INPUT:
-                self._input_buf = buf
-            else:
-                self._output_bufs.append(buf)
 
     def run(self, image_path: Path, conf_thresh: float) -> List[BoundingBox]:
         img_bgr = cv2.imread(str(image_path))
@@ -140,25 +113,22 @@ class TRTDetector:
 
         tensor, meta = self._parser.preprocess(img_bgr, self.net_w, self.net_h)
 
-        inp = tensor.astype(self._input_buf.dtype)
-        np.copyto(self._input_buf.host, inp.ravel())
-        cuda.memcpy_htod_async(self._input_buf.device, self._input_buf.host, self._stream)
+        inp = tensor.astype(np.float32)
+        raw_outputs = self._session.run(self._output_names, {self._input_name: inp})
 
-        self._context.execute_async_v3(self._stream.handle)
+        output_bufs: List[OutputBuffer] = []
+        for name, raw in zip(self._output_names, raw_outputs):
+            arr = np.asarray(raw, dtype=np.float32)
+            output_bufs.append(
+                OutputBuffer(
+                    name=name,
+                    host=arr.ravel(),
+                    shape=arr.shape,
+                    dtype=arr.dtype,
+                )
+            )
 
-        for buf in self._output_bufs:
-            cuda.memcpy_dtoh_async(buf.host, buf.device, self._stream)
-        self._stream.synchronize()
-
-        return self._parser.parse(self._output_bufs, meta, orig_w, orig_h, conf_thresh)
+        return self._parser.parse(output_bufs, meta, orig_w, orig_h, conf_thresh)
 
     def close(self) -> None:
-        try:
-            del self._context
-            del self._engine
-            if self._input_buf is not None:
-                self._input_buf.device.free()
-            for buf in self._output_bufs:
-                buf.device.free()
-        except Exception:
-            pass
+        self._session = None

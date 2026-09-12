@@ -20,9 +20,8 @@ from auto_annotator.config import (
     ZOOM_STEP_KEYBOARD,
     ZOOM_STEP_SCROLL,
 )
-from auto_annotator.detector import TRTDetector
+from auto_annotator.detector import OnnxDetector
 from auto_annotator.dialogs import (
-    ExportEngineDialog,
     FrameExtractionDialog,
     HelpDialog,
     SplitConfigDialog,
@@ -43,7 +42,7 @@ from auto_annotator.ui.undo import UndoStack
 
 
 class AnnotatorApp(tk.Tk):
-    def __init__(self, detector: TRTDetector, store: AnnotationStore,
+    def __init__(self, detector: OnnxDetector, store: AnnotationStore,
                  image_paths: List[Path], labels: List[str]):
         super().__init__()
         self.detector = detector
@@ -206,8 +205,6 @@ class AnnotatorApp(tk.Tk):
         tools_menu.add_separator()
         tools_menu.add_command(label="Frame Extraction…",
                                command=lambda: FrameExtractionDialog(self))
-        tools_menu.add_command(label="Build TensorRT Engine…",
-                               command=lambda: ExportEngineDialog(self))
         menubar.add_cascade(label="Tools", menu=tools_menu)
 
         help_menu = tk.Menu(menubar, tearoff=0, bg="#252526", fg="#d4d4d4",
@@ -232,8 +229,8 @@ class AnnotatorApp(tk.Tk):
     def _on_about(self):
         messagebox.showinfo(
             "About",
-            "TensorRT Auto-Annotator\n"
-            "Bulk image annotation for Jetson / JetPack.\n\n"
+            "LabeliT — Auto-Annotator\n"
+            "Bulk image annotation powered by ONNX Runtime.\n\n"
             "Tip: Help → Workflow & Shortcuts opens a full reference.",
             parent=self,
         )

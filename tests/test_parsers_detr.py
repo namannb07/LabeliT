@@ -1,15 +1,14 @@
 import numpy as np
 import pytest
 
-from auto_annotator.models import TRTBuffer
+from auto_annotator.models import OutputBuffer
 from auto_annotator.parsers.detr import DetrParser
 
 
-def make_buffer(name: str, arr: np.ndarray) -> TRTBuffer:
-    return TRTBuffer(
+def make_buffer(name: str, arr: np.ndarray) -> OutputBuffer:
+    return OutputBuffer(
         name=name,
         host=arr.flatten(),
-        device=None,
         shape=arr.shape,
         dtype=arr.dtype,
     )

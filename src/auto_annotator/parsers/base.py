@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 
 from auto_annotator.config import NMS_IOU
-from auto_annotator.models import BoundingBox, TRTBuffer
+from auto_annotator.models import BoundingBox, OutputBuffer
 
 
 class OutputParser(ABC):
@@ -41,7 +41,7 @@ class OutputParser(ABC):
     @abstractmethod
     def parse(
         self,
-        output_bufs: List[TRTBuffer],
+        output_bufs: List[OutputBuffer],
         meta: dict,
         orig_w: int,
         orig_h: int,

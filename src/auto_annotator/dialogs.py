@@ -10,9 +10,6 @@ from auto_annotator.config import (
     DEFAULT_SPLIT_TEST,
     DEFAULT_SPLIT_TRAIN,
     DEFAULT_SPLIT_VAL,
-    ENGINE_BUILD_FP16_DEFAULT,
-    ENGINE_BUILD_POLL_MS,
-    ENGINE_BUILD_WORKSPACE_GB,
     FRAME_EXTRACT_POLL_MS,
     FRAME_EXTRACT_VIDEO_EXTS,
     IMAGES_DIR,
@@ -25,17 +22,17 @@ from auto_annotator.ui.tooltip import Tooltip
 class ModelSelectionDialog(tk.Toplevel):
     def __init__(self, parent: tk.Tk):
         super().__init__(parent)
-        self.title("Select Model Engine")
+        self.title("Select ONNX Model")
         self.resizable(False, False)
         self.configure(bg="#1e1e1e")
         self.grab_set()
 
-        self.engine_path: Optional[Path] = None
+        self.model_path: Optional[Path] = None
         self.labels_path: Optional[Path] = None
         self.extra_labels: List[str] = []
         self.confirmed: bool = False
 
-        self._engine_var = tk.StringVar()
+        self._model_var = tk.StringVar()
         self._labels_var = tk.StringVar()
 
         self._build_ui()
@@ -53,26 +50,26 @@ class ModelSelectionDialog(tk.Toplevel):
     def _build_ui(self):
         pad = {"padx": 12, "pady": 6}
 
-        tk.Label(self, text="TensorRT Annotator", bg="#007acc", fg="white",
+        tk.Label(self, text="LabeliT", bg="#007acc", fg="white",
                  font=("TkDefaultFont", 12, "bold"), pady=10).pack(fill=tk.X)
-        tk.Label(self, text="Select an engine file and a labels file to continue.",
+        tk.Label(self, text="Select an ONNX model file and a labels file to continue.",
                  bg="#1e1e1e", fg="#aaaaaa", font=("TkDefaultFont", 9),
                  pady=6).pack(fill=tk.X, padx=12)
 
-        eng_frame = tk.LabelFrame(self, text=" Engine File (.engine) ",
-                                  bg="#1e1e1e", fg="#aaaaaa",
-                                  font=("TkDefaultFont", 8))
-        eng_frame.pack(fill=tk.X, **pad)
-        eng_row = tk.Frame(eng_frame, bg="#1e1e1e")
-        eng_row.pack(fill=tk.X, padx=6, pady=6)
-        tk.Entry(eng_row, textvariable=self._engine_var, state="readonly",
+        model_frame = tk.LabelFrame(self, text=" ONNX Model (.onnx) ",
+                                    bg="#1e1e1e", fg="#aaaaaa",
+                                    font=("TkDefaultFont", 8))
+        model_frame.pack(fill=tk.X, **pad)
+        model_row = tk.Frame(model_frame, bg="#1e1e1e")
+        model_row.pack(fill=tk.X, padx=6, pady=6)
+        tk.Entry(model_row, textvariable=self._model_var, state="readonly",
                  bg="#2d2d2d", fg="#d4d4d4", readonlybackground="#2d2d2d",
                  width=48, relief=tk.FLAT).pack(side=tk.LEFT, padx=(0, 6))
-        tk.Button(eng_row, text="Browse…", command=self._browse_engine,
+        tk.Button(model_row, text="Browse…", command=self._browse_model,
                   bg="#3c3c3c", fg="#d4d4d4", relief=tk.FLAT,
                   activebackground="#505050", cursor="hand2").pack(side=tk.LEFT)
 
-        lbl_frame = tk.LabelFrame(self, text=" Labels File (.txt) ",
+        lbl_frame = tk.LabelFrame(self, text=" Labels File (.txt) (Optional) ",
                                   bg="#1e1e1e", fg="#aaaaaa",
                                   font=("TkDefaultFont", 8))
         lbl_frame.pack(fill=tk.X, **pad)
@@ -109,24 +106,24 @@ class ModelSelectionDialog(tk.Toplevel):
                   activebackground="#505050", width=10,
                   cursor="hand2").pack(side=tk.RIGHT)
 
-        self._engine_var.trace_add("write", self._update_ok_btn)
+        self._model_var.trace_add("write", self._update_ok_btn)
         self._labels_var.trace_add("write", self._update_ok_btn)
 
     def _update_ok_btn(self, *_):
-        if self._engine_var.get() and self._labels_var.get():
+        if self._model_var.get():
             self._ok_btn.config(state=tk.NORMAL)
         else:
             self._ok_btn.config(state=tk.DISABLED)
 
-    def _browse_engine(self):
+    def _browse_model(self):
         path = filedialog.askopenfilename(
             parent=self,
-            title="Select TensorRT Engine",
+            title="Select ONNX Model",
             initialdir=MODELS_DIR if MODELS_DIR.exists() else Path.home(),
-            filetypes=[("TRT Engine", "*.engine"), ("All files", "*.*")],
+            filetypes=[("ONNX Model", "*.onnx"), ("All files", "*.*")],
         )
         if path:
-            self._engine_var.set(path)
+            self._model_var.set(path)
 
     def _browse_labels(self):
         path = filedialog.askopenfilename(
@@ -138,16 +135,22 @@ class ModelSelectionDialog(tk.Toplevel):
             self._labels_var.set(path)
 
     def _on_ok(self):
-        ep = Path(self._engine_var.get())
-        lp = Path(self._labels_var.get())
-        if not ep.exists():
-            messagebox.showerror("Error", f"Engine file not found:\n{ep}", parent=self)
+        mp = Path(self._model_var.get())
+        if not mp.exists():
+            messagebox.showerror("Error", f"Model file not found:\n{mp}", parent=self)
             return
-        if not lp.exists():
-            messagebox.showerror("Error", f"Labels file not found:\n{lp}", parent=self)
-            return
-        self.engine_path = ep
-        self.labels_path = lp
+
+        lp_str = self._labels_var.get().strip()
+        if lp_str:
+            lp = Path(lp_str)
+            if not lp.exists():
+                messagebox.showerror("Error", f"Labels file not found:\n{lp}", parent=self)
+                return
+            self.labels_path = lp
+        else:
+            self.labels_path = None
+
+        self.model_path = mp
         raw = self._extra_entry.get().strip()
         if raw:
             self.extra_labels = [c.strip() for c in raw.split(",") if c.strip()]
@@ -162,7 +165,7 @@ class ModelSelectionDialog(tk.Toplevel):
 class LauncherDialog(tk.Toplevel):
     def __init__(self, parent: tk.Tk):
         super().__init__(parent)
-        self.title("Auto Annotate")
+        self.title("LabeliT")
         self.resizable(False, False)
         self.configure(bg="#1e1e1e")
         self.grab_set()
@@ -183,13 +186,13 @@ class LauncherDialog(tk.Toplevel):
 
     def _build_ui(self):
         tk.Label(
-            self, text="TensorRT Annotator", bg="#007acc", fg="white",
+            self, text="LabeliT", bg="#007acc", fg="white",
             font=("TkDefaultFont", 12, "bold"), pady=10,
         ).pack(fill=tk.X)
         tk.Label(
             self, text="What would you like to do?",
             bg="#1e1e1e", fg="#d4d4d4", font=("TkDefaultFont", 10, "bold"),
-            pady=(8 if False else 4),
+            pady=4,
         ).pack(fill=tk.X, padx=12, pady=(8, 0))
         tk.Label(
             self,
@@ -211,22 +214,8 @@ class LauncherDialog(tk.Toplevel):
             "Use this if you have a video (.mp4/.mkv/.webm) and need to create individual images to annotate.",
         )
 
-        export_btn = tk.Button(
-            self, text="② Export Engine\nConvert an ONNX model into a fast TensorRT engine",
-            command=self._on_export,
-            bg="#2d2d2d", fg="#ffffff", activebackground="#3c3c3c",
-            activeforeground="#ffffff", relief=tk.FLAT, cursor="hand2",
-            anchor="w", justify="left", padx=14, pady=10,
-            font=("TkDefaultFont", 10),
-        )
-        export_btn.pack(fill=tk.X, padx=12, pady=(6, 0))
-        Tooltip(
-            export_btn,
-            "Use this once per model: it builds a .engine file optimized for this Jetson. You only need to do this when you get a new ONNX model.",
-        )
-
         annotate_btn = tk.Button(
-            self, text="③ Start Annotation\nAuto-detect and label images using a TRT engine",
+            self, text="② Start Annotation\nAuto-detect and label images using an ONNX model",
             command=self._on_annotate,
             bg="#2d2d2d", fg="#ffffff", activebackground="#3c3c3c",
             activeforeground="#ffffff", relief=tk.FLAT, cursor="hand2",
@@ -236,7 +225,7 @@ class LauncherDialog(tk.Toplevel):
         annotate_btn.pack(fill=tk.X, padx=12, pady=(6, 0))
         Tooltip(
             annotate_btn,
-            "Open the main annotator. You'll be asked to pick your .engine file and labels.txt, then your images load automatically.",
+            "Open the main annotator. You'll be asked to pick your .onnx model file and labels.txt, then your images load automatically.",
         )
 
         btn_row = tk.Frame(self, bg="#1e1e1e")
@@ -246,10 +235,6 @@ class LauncherDialog(tk.Toplevel):
             bg="#3c3c3c", fg="#d4d4d4", relief=tk.FLAT,
             activebackground="#505050", width=10, cursor="hand2",
         ).pack(side=tk.RIGHT)
-
-    def _on_export(self):
-        self.choice = "export"
-        self.destroy()
 
     def _on_annotate(self):
         self.choice = "annotate"
@@ -263,244 +248,6 @@ class LauncherDialog(tk.Toplevel):
         self.choice = None
         self.destroy()
 
-
-class ExportEngineDialog(tk.Toplevel):
-    def __init__(self, parent: tk.Tk):
-        super().__init__(parent)
-        self.title("Export Engine")
-        self.resizable(False, False)
-        self.configure(bg="#1e1e1e")
-        self.grab_set()
-
-        self.exported_path: Optional[Path] = None
-        self._onnx_path: Optional[Path] = None
-        self._build_thread: Optional[threading.Thread] = None
-        self._status_queue: queue.Queue = queue.Queue()
-        self._poll_id: Optional[str] = None
-
-        self._onnx_var = tk.StringVar()
-        self._fp16_var = tk.BooleanVar(value=ENGINE_BUILD_FP16_DEFAULT)
-
-        self._build_ui()
-        self.protocol("WM_DELETE_WINDOW", self._on_cancel)
-
-        self.update_idletasks()
-        pw = parent.winfo_screenwidth()
-        ph = parent.winfo_screenheight()
-        w = self.winfo_reqwidth()
-        h = self.winfo_reqheight()
-        self.geometry(f"+{(pw - w) // 2}+{(ph - h) // 2}")
-
-        self.wait_window(self)
-
-    def _build_ui(self):
-        pad = {"padx": 12, "pady": 6}
-
-        tk.Label(
-            self, text="Export Engine", bg="#007acc", fg="white",
-            font=("TkDefaultFont", 12, "bold"), pady=10,
-        ).pack(fill=tk.X)
-        tk.Label(
-            self, text="Convert an ONNX model to TensorRT engine.",
-            bg="#1e1e1e", fg="#aaaaaa", font=("TkDefaultFont", 9), pady=6,
-        ).pack(fill=tk.X, padx=12)
-
-        onnx_frame = tk.LabelFrame(
-            self, text=" ONNX Model (.onnx) ",
-            bg="#1e1e1e", fg="#aaaaaa", font=("TkDefaultFont", 8),
-        )
-        onnx_frame.pack(fill=tk.X, **pad)
-        onnx_row = tk.Frame(onnx_frame, bg="#1e1e1e")
-        onnx_row.pack(fill=tk.X, padx=6, pady=6)
-        tk.Entry(
-            onnx_row, textvariable=self._onnx_var, state="readonly",
-            bg="#2d2d2d", fg="#d4d4d4", readonlybackground="#2d2d2d",
-            width=48, relief=tk.FLAT,
-        ).pack(side=tk.LEFT, padx=(0, 6))
-        self._browse_btn = tk.Button(
-            onnx_row, text="Browse…", command=self._browse_onnx,
-            bg="#3c3c3c", fg="#d4d4d4", relief=tk.FLAT,
-            activebackground="#505050", cursor="hand2",
-        )
-        self._browse_btn.pack(side=tk.LEFT)
-
-        info_frame = tk.LabelFrame(
-            self, text=" Model Info ",
-            bg="#1e1e1e", fg="#aaaaaa", font=("TkDefaultFont", 8),
-        )
-        info_frame.pack(fill=tk.X, **pad)
-        self._resolution_lbl = tk.Label(
-            info_frame, text="Resolution: —",
-            bg="#1e1e1e", fg="#d4d4d4", font=("TkDefaultFont", 9),
-            anchor=tk.W,
-        )
-        self._resolution_lbl.pack(fill=tk.X, padx=6, pady=(4, 0))
-        self._status_lbl = tk.Label(
-            info_frame, text="Select an ONNX file to begin.",
-            bg="#1e1e1e", fg="#888888", font=("TkDefaultFont", 9),
-            anchor=tk.W,
-        )
-        self._status_lbl.pack(fill=tk.X, padx=6, pady=(0, 6))
-
-        self._fp16_chk = tk.Checkbutton(
-            self, text="Enable FP16 precision (recommended)",
-            variable=self._fp16_var,
-            bg="#1e1e1e", fg="#d4d4d4", selectcolor="#2d2d2d",
-            activebackground="#1e1e1e", activeforeground="#d4d4d4",
-            font=("TkDefaultFont", 9),
-        )
-        self._fp16_chk.pack(anchor=tk.W, padx=14, pady=(2, 0))
-
-        self._progress_bar = ttk.Progressbar(
-            self, mode="indeterminate", length=300,
-        )
-
-        self._progress_msg = tk.Label(
-            self, text="", bg="#1e1e1e", fg="#888888",
-            font=("TkDefaultFont", 8),
-        )
-
-        btn_row = tk.Frame(self, bg="#1e1e1e")
-        btn_row.pack(fill=tk.X, padx=12, pady=(8, 12))
-        self._export_btn = tk.Button(
-            btn_row, text="Export", command=self._on_export,
-            bg="#0e639c", fg="white", relief=tk.FLAT,
-            activebackground="#1177bb", width=10,
-            cursor="hand2", state=tk.DISABLED,
-        )
-        self._export_btn.pack(side=tk.RIGHT, padx=(6, 0))
-        self._cancel_btn = tk.Button(
-            btn_row, text="Cancel", command=self._on_cancel,
-            bg="#3c3c3c", fg="#d4d4d4", relief=tk.FLAT,
-            activebackground="#505050", width=10, cursor="hand2",
-        )
-        self._cancel_btn.pack(side=tk.RIGHT)
-
-    def _browse_onnx(self):
-        path = filedialog.askopenfilename(
-            parent=self,
-            title="Select ONNX Model",
-            initialdir=MODELS_DIR if MODELS_DIR.exists() else Path.home(),
-            filetypes=[("ONNX Model", "*.onnx"), ("All files", "*.*")],
-        )
-        if not path:
-            return
-        self._onnx_var.set(path)
-        self._onnx_path = Path(path)
-        self._inspect()
-
-    def _inspect(self):
-        from auto_annotator.engine_builder import inspect_onnx
-
-        self._resolution_lbl.config(text="Resolution: —")
-        self._status_lbl.config(text="Inspecting model…", fg="#888888")
-        self._export_btn.config(state=tk.DISABLED)
-        self.update_idletasks()
-
-        try:
-            info = inspect_onnx(self._onnx_path)
-        except RuntimeError as e:
-            self._status_lbl.config(text=str(e), fg="#ff4444")
-            return
-
-        self._resolution_lbl.config(text=f"Resolution: {info.resolution}")
-        self._status_lbl.config(text="Ready to export", fg="#44dd44")
-        self._export_btn.config(state=tk.NORMAL)
-
-    def _on_export(self):
-        output_path = MODELS_DIR / (self._onnx_path.stem + ".engine")
-
-        if output_path.exists():
-            overwrite = messagebox.askyesno(
-                "File Exists",
-                f"{output_path.name} already exists in models folder.\n"
-                "Overwrite?",
-                parent=self,
-            )
-            if not overwrite:
-                return
-
-        self._export_btn.config(state=tk.DISABLED)
-        self._browse_btn.config(state=tk.DISABLED)
-        self._fp16_chk.config(state=tk.DISABLED)
-
-        self._progress_bar.pack(padx=12, pady=(4, 0))
-        self._progress_bar.start(15)
-        self._progress_msg.pack(padx=12, pady=(2, 0))
-
-        self._build_thread = threading.Thread(
-            target=self._build_worker,
-            args=(self._onnx_path, output_path, self._fp16_var.get()),
-            daemon=True,
-        )
-        self._build_thread.start()
-        self._poll_id = self.after(ENGINE_BUILD_POLL_MS, self._poll_build)
-
-    def _build_worker(self, onnx_path: Path, output_path: Path, fp16: bool):
-        from auto_annotator.engine_builder import build_engine
-
-        try:
-            build_engine(
-                onnx_path,
-                output_path,
-                fp16=fp16,
-                workspace_gb=ENGINE_BUILD_WORKSPACE_GB,
-                on_status=lambda msg: self._status_queue.put(("status", msg)),
-            )
-            self._status_queue.put(("done", str(output_path)))
-        except Exception as e:
-            self._status_queue.put(("error", str(e)))
-
-    def _poll_build(self):
-        if not self.winfo_exists():
-            return
-        while True:
-            try:
-                kind, payload = self._status_queue.get_nowait()
-            except queue.Empty:
-                break
-
-            if kind == "status":
-                self._progress_msg.config(text=payload)
-            elif kind == "done":
-                self._progress_bar.stop()
-                self._progress_bar.pack_forget()
-                self._progress_msg.config(text="")
-                self._status_lbl.config(
-                    text="Engine exported successfully!", fg="#44dd44",
-                )
-                self.exported_path = Path(payload)
-                self._export_btn.config(
-                    text="Done", state=tk.NORMAL, command=self._on_done,
-                )
-                return
-            elif kind == "error":
-                self._progress_bar.stop()
-                self._progress_bar.pack_forget()
-                self._progress_msg.config(text="")
-                self._status_lbl.config(text=payload, fg="#ff4444")
-                self._export_btn.config(state=tk.NORMAL)
-                self._browse_btn.config(state=tk.NORMAL)
-                self._fp16_chk.config(state=tk.NORMAL)
-                return
-
-        if self._build_thread and self._build_thread.is_alive():
-            self._poll_id = self.after(ENGINE_BUILD_POLL_MS, self._poll_build)
-
-    def _on_done(self):
-        self.destroy()
-
-    def _on_cancel(self):
-        if self._build_thread and self._build_thread.is_alive():
-            messagebox.showwarning(
-                "Build in Progress",
-                "The TensorRT engine build is still running in the background "
-                "and will continue until it finishes.",
-                parent=self,
-            )
-        if self._poll_id is not None:
-            self.after_cancel(self._poll_id)
-        self.destroy()
 
 
 class SplitConfigDialog(tk.Toplevel):
@@ -1264,11 +1011,19 @@ class EmptyStateDialog(tk.Toplevel):
 
 
 def _open_in_file_manager(path: Path) -> None:
-    """Best-effort opening of a folder in the OS file manager. Linux-only (JetPack)."""
-    import subprocess
+    """Best-effort opening of a folder in the OS file manager."""
+    import os
+    import sys
     try:
         path.mkdir(parents=True, exist_ok=True)
-        subprocess.Popen(["xdg-open", str(path)])
+        if sys.platform == "win32":
+            os.startfile(str(path))
+        elif sys.platform == "darwin":
+            import subprocess
+            subprocess.Popen(["open", str(path)])
+        else:
+            import subprocess
+            subprocess.Popen(["xdg-open", str(path)])
     except Exception:
         pass
 
@@ -1297,8 +1052,7 @@ class HelpDialog(tk.Toplevel):
          "Drop .jpg / .png files into ~/Desktop/auto_annotate/input_images. "
          "No images yet? Use Tools → Frame Extraction… to turn a video into images."),
         ("2. Pick a model",
-         "On startup, select your .engine file and the matching labels.txt. "
-         "If you don't have an engine yet, use Tools → Build TensorRT Engine… first."),
+         "On startup, select your .onnx model file and the matching labels.txt."),
         ("3. Auto-detect",
          "Each image is detected automatically when you open it. "
          "Tools → Annotate All Images runs detection across every image at once."),

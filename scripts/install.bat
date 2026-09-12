@@ -1,0 +1,56 @@
+@echo off
+echo Installing LabeliT...
+
+:: Add Python Scripts directories to PATH dynamically
+where python >nul 2>nul
+if %ERRORLEVEL% EQU 0 (
+    for /f "delims=" %%i in ('python -c "import sys, os; print(os.path.dirname(sys.executable) + '\\Scripts')" 2^>nul') do (
+        if exist "%%i" (
+            set "PATH=%%i;%PATH%"
+        )
+    )
+    for /f "delims=" %%i in ('python -c "import site; print(site.getusersitepackages().replace('site-packages', 'Scripts'))" 2^>nul') do (
+        if exist "%%i" (
+            set "PATH=%%i;%PATH%"
+        )
+    )
+)
+
+:: Check for uv
+where uv >nul 2>nul
+if %ERRORLEVEL% neq 0 (
+    echo Error: "uv" package manager not found.
+    echo Please install uv ^(https://docs.astral.sh/uv/^) and make sure it is in your PATH.
+    pause
+    exit /b 1
+)
+
+:: Get absolute path of the directory containing the project root
+pushd "%~dp0.."
+set "REPO_DIR=%CD%"
+popd
+cd /d "%REPO_DIR%"
+
+echo Creating virtual environment and installing dependencies...
+call uv venv --clear
+call uv pip install -e .
+
+echo Creating runtime directories...
+set "DESKTOP_DIR=%USERPROFILE%\OneDrive\Desktop"
+if not exist "%DESKTOP_DIR%" set "DESKTOP_DIR=%USERPROFILE%\Desktop"
+
+set "WORK_DIR=%DESKTOP_DIR%\auto_annotate"
+if not exist "%WORK_DIR%\input_images" mkdir "%WORK_DIR%\input_images"
+if not exist "%WORK_DIR%\datasets" mkdir "%WORK_DIR%\datasets"
+if not exist "%WORK_DIR%\model" mkdir "%WORK_DIR%\model"
+
+echo Creating Desktop shortcut...
+set "SHORTCUT_PATH=%DESKTOP_DIR%\LabeliT.lnk"
+powershell -Command "$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%SHORTCUT_PATH%'); $Shortcut.TargetPath = 'wscript.exe'; $Shortcut.Arguments = '\"%REPO_DIR%\scripts\launch.vbs\"'; $Shortcut.WorkingDirectory = '%REPO_DIR%'; $Shortcut.WindowStyle = 1; $Shortcut.IconLocation = '%REPO_DIR%\assets\auto_annotate.ico'; $Shortcut.Save()"
+
+echo.
+echo Installation complete! 
+echo You can now launch LabeliT from the shortcut on your Desktop.
+echo Put your ONNX models and labels in: %WORK_DIR%\model\
+echo Put your images in: %WORK_DIR%\input_images\
+pause
